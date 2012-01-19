@@ -338,9 +338,6 @@ static char logo_spark[1120] =	{
 class LCDShield
 {
 	uint8_t driver;
-
-    void LCDData(uint8_t data, bool command=false);
-    void LCDCommand(uint8_t data) { LCDData(data, true); }
 	
 public:
     LCDShield(void);
@@ -353,7 +350,7 @@ public:
     void setCircle(uint8_t x0, uint8_t y0, uint8_t radius, int color);
 
     void setChar(char c, uint8_t x, uint8_t y, int fColor, int bColor);
-    void setStr(char *pString, uint8_t x, uint8_t y, int fColor, int bColor);
+    void setStr(const char *pString, uint8_t x, uint8_t y, int fColor, int bColor);
 
     void setLine(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, int color);
     void setRect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, bool fill, int color);

@@ -14,6 +14,71 @@
 
 #include "ColorLCDShield.h"
 
+namespace
+{
+
+void LCDCommand(uint8_t data)
+{
+    cbi(SPCR, SPE); // Temporarily disable hardware SPI
+
+    cbi(LCD_PORT_CS, CS);     // enable chip
+
+    cbi(LCD_PORT_DIO, DIO);   // output low on data out (9th bit low = command)
+
+    cbi(LCD_PORT_SCK, SCK);   // send clock pulse
+    sbi(LCD_PORT_SCK, SCK);   // send clock pulse
+
+    // Do the rest via hardware SPI
+    sbi(SPCR, SPE); // Enable SPI
+    SPDR = data; // Send data
+
+    // Wait until finished
+    while (!(SPSR & (1<<SPIF)))
+        ;
+
+    LCD_PORT_CS	|=	(1<<CS);  // disable
+}
+
+// Inlined to get some extra performance (at the cost of space)
+void LCDData(uint8_t data)
+{
+    cbi(SPCR, SPE); // Temporarily disable hardware SPI
+
+    cbi(LCD_PORT_CS, CS);     // enable chip
+
+    sbi(LCD_PORT_DIO, DIO);   // output high on data out (9th bit high = data)
+
+    cbi(LCD_PORT_SCK, SCK);   // send clock pulse
+    sbi(LCD_PORT_SCK, SCK);   // send clock pulse
+
+    // Do the rest via hardware SPI
+    sbi(SPCR, SPE); // Enable SPI
+    SPDR = data; // Send data
+
+    // Wait until finished
+    while (!(SPSR & (1<<SPIF)))
+        ;
+
+    LCD_PORT_CS	|=	(1<<CS);  // disable
+}
+
+// Use this for speed (trading space)
+#define FastLCDData(data) \
+ { \
+    cbi(SPCR, SPE);  \
+    cbi(LCD_PORT_CS, CS); \
+    sbi(LCD_PORT_DIO, DIO); \
+    cbi(LCD_PORT_SCK, SCK); \
+    sbi(LCD_PORT_SCK, SCK); \
+    sbi(SPCR, SPE); \
+    SPDR = data; \
+    while (!(SPSR & (1<<SPIF))) \
+        ; \
+    LCD_PORT_CS	|=	(1<<CS); \
+ }
+
+}
+
 LCDShield::LCDShield()
 {
 #if defined(__AVR_ATmega2560__) || defined(__AVR_ATmega1280__)
@@ -32,31 +97,6 @@ LCDShield::LCDShield()
     digitalWrite(SS, HIGH);
     // Use standard 4 MHz SPI clock. SPI is disabled when sending a command/data flag
     SPCR = (1<<SPE) | (1<<MSTR);
-}
-
-void LCDShield::LCDData(uint8_t data, bool command)
-{
-    cbi(SPCR, SPE); // Temporarily disable hardware SPI
-
-	cbi(LCD_PORT_CS, CS);     // enable chip
-
-    if (command)
-        cbi(LCD_PORT_DIO, DIO);   // output low on data out (9th bit low = command)
-    else
-        sbi(LCD_PORT_DIO, DIO);   // output high on data out (9th bit high = data)
-
-	cbi(LCD_PORT_SCK, SCK);   // send clock pulse
-	sbi(LCD_PORT_SCK, SCK);   // send clock pulse
-
-    // Do the rest via hardware SPI
-    sbi(SPCR, SPE); // Enable SPI
-    SPDR = data; // Send data
-
-    // Wait until finished
-    while (!(SPSR & (1<<SPIF)))
-        ;
-
-	LCD_PORT_CS	|=	(1<<CS);  // disable
 }
 
 void LCDShield::init(uint8_t type)
@@ -336,7 +376,7 @@ void LCDShield::setChar(char c, uint8_t x, uint8_t y, int fColor, int bColor)
     }
 }
 
-void LCDShield::setStr(char *pString, uint8_t x, uint8_t y, int fColor, int bColor)
+void LCDShield::setStr(const char *pString, uint8_t x, uint8_t y, int fColor, int bColor)
 {
 	// loop until null-terminator is seen
 	while (*pString != 0x00) {
@@ -474,17 +514,20 @@ void LCDShield::drawPixels(uint8_t *pixels, uint16_t pxsize, uint8_t x0, uint8_t
     // (1.5 byte each) to speed things up.
     // UNDONE: Only supports PHILIPS
 
-    LCDCommand(CASETP); // column start/end ram
-    LCDData(x0);
-    LCDData(x1);
-
     LCDCommand(PASETP); // page start/end ram
     LCDData(y0);
     LCDData(y1);
 
+    LCDCommand(CASETP); // column start/end ram
+    LCDData(x0);
+    LCDData(x1);
+
     LCDCommand(RAMWRP); // write
+
     for (uint16_t i=0; i<pxsize; ++i)
-        LCDData(pixels[i]);
+        FastLCDData(pixels[i]);
+
+    LCDCommand(NOPP);
 }
 
 void LCDShield::off(void)
