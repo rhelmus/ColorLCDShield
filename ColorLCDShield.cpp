@@ -14,6 +14,16 @@
 
 #include "ColorLCDShield.h"
 
+
+/* ORIENTATIONS
+  Using shield buttons as bottom reference:
+  * North: X&Y switched, mirror X, vertical ram write
+  * West: Regular X&Y, mirror X&Y, horizontal ram write
+  * South: X&Y switched, mirror Y, vertical ram write
+  * East: Regular X&Y, no mirroring, horizontal ram write
+*/
+
+
 namespace
 {
 
@@ -62,7 +72,7 @@ void LCDData(uint8_t data)
 }
 
 // Use this for speed (trading space)
-#define FastLCDData(data) \
+#define fastLCDData(data) \
  { \
     cbi(SPCR, SPE);  \
     cbi(LCD_PORT_CS, CS); \
@@ -75,7 +85,6 @@ void LCDData(uint8_t data)
         ; \
     LCD_PORT_CS	|=	(1<<CS); \
  }
-
 }
 
 LCDShield::LCDShield()
@@ -98,7 +107,35 @@ LCDShield::LCDShield()
     SPCR = (1<<SPE) | (1<<MSTR);
 }
 
-void LCDShield::init(uint8_t type)
+void LCDShield::initRamWrite(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
+{
+    if (driver == EPSON) // if it's an Epson
+    {
+        LCDCommand((colRowSwap) ? PASET : CASET);
+        LCDData(x0);
+        LCDData(x1);
+
+        LCDCommand((colRowSwap) ? CASET : PASET);
+        LCDData(y0);
+        LCDData(y1);
+
+        LCDCommand(RAMWR);
+    }
+    else // otherwise it's a phillips
+    {
+        LCDCommand((colRowSwap) ? PASETP : CASETP);
+        LCDData(x0);
+        LCDData(x1);
+
+        LCDCommand((colRowSwap) ? CASETP : PASETP);
+        LCDData(y0);
+        LCDData(y1);
+
+        LCDCommand(RAMWRP);
+    }
+}
+
+void LCDShield::init(uint8_t type, EOrientation orient)
 {
 	driver = type;
 
@@ -162,7 +199,13 @@ void LCDShield::init(uint8_t type)
         LCDData(0x03);
 
         LCDCommand(MADCTL);   // Memory Access Control(PHILLIPS)
-        LCDData(0x0); // UNDONE: Configurable?
+        switch (orient)
+        {
+        case NORTH: LCDData(0x60); break;
+        case WEST: LCDData(0xC0); break;
+        case SOUTH: LCDData(0xA0); break;
+        case EAST: LCDData(0x00); break;
+        }
 
         LCDCommand(SETCON);   // Set Contrast(PHILLIPS)
         LCDData(0x30);
@@ -173,35 +216,13 @@ void LCDShield::init(uint8_t type)
 
         LCDCommand(DISPON);   // display on(PHILLIPS)
     }
+
+    colRowSwap = ((orient == NORTH) || (orient == SOUTH));
 }
 
 void LCDShield::clear(int color)
 {
-    if (driver == EPSON) // if it's an Epson
-	{
-		LCDCommand(PASET);
-		LCDData(0);
-        LCDData(COL_HEIGHT-1);
-
-		LCDCommand(CASET);
-		LCDData(0);
-        LCDData(ROW_LENGTH-1);
-
-		LCDCommand(RAMWR);
-	}
-	else // otherwise it's a phillips
-	{
-		LCDCommand(PASETP);
-		LCDData(0);
-        LCDData(COL_HEIGHT-1);
-
-		LCDCommand(CASETP);
-		LCDData(0);
-        LCDData(ROW_LENGTH-1);
-
-		LCDCommand(RAMWRP);
-	}
-
+    initRamWrite(0, 0, ROW_LENGTH-1, COL_HEIGHT-1);
     for (unsigned int i=0; i < (ROW_LENGTH*COL_HEIGHT)/2; i++)
 	{
 		LCDData((color>>4)&0x00FF);
@@ -229,31 +250,14 @@ void LCDShield::setPixel(int color, uint8_t x, uint8_t y)
 {
     if (driver == EPSON) // if it's an epson
 	{
-        LCDCommand(CASET);  // column start/end ram
-        LCDData(x);
-        LCDData(ENDCOL);
-
-		LCDCommand(PASET);  // page start/end ram
-        LCDData(y);
-		LCDData(ENDPAGE);
-
-		LCDCommand(RAMWR);  // write
+        initRamWrite(x, y, ENDCOL, ENDPAGE);
 		LCDData((color>>4)&0x00FF);
 		LCDData(((color&0x0F)<<4)|(color>>8));
 		LCDData(color&0x0FF);
 	}
 	else  // otherwise it's a phillips
 	{
-		LCDCommand(PASETP); // page start/end ram
-        LCDData(y);
-        LCDData(y);
-
-		LCDCommand(CASETP); // column start/end ram
-        LCDData(x);
-        LCDData(x);
-
-		LCDCommand(RAMWRP); // write
-
+        initRamWrite(x, y, x, y);
         LCDData((uint8_t)((color>>4)&0x00FF));
         LCDData((uint8_t)(((color&0x0F)<<4)|0x00));
 	}
@@ -312,36 +316,7 @@ void LCDShield::setChar(char c, uint8_t x, uint8_t y, int fColor, int bColor)
     nBytes = pgm_read_byte(&(FONT8x16[0][2]));
     fontindex = (nBytes * (c - 0x1F)) + nBytes - 1;
 
-    if (driver == EPSON)	// If it's an epson
-	{
-		// Row address set (command 0x2B)
-		LCDCommand(PASET);
-        LCDData(y);
-        LCDData(y + nRows - 1);
-
-		// Column address set (command 0x2A)
-		LCDCommand(CASET);
-        LCDData(x);
-        LCDData(x + nCols - 1);
-
-		// WRITE MEMORY
-		LCDCommand(RAMWR);
-    }
-    else
-    {
-        // Row address set (command 0x2B)
-        LCDCommand(PASETP);
-        LCDData(y);
-        LCDData(y + nRows - 1);
-
-        // Column address set (command 0x2A)
-        LCDCommand(CASETP);
-        LCDData(x);
-        LCDData(x + nCols - 1);
-
-        // WRITE MEMORY
-        LCDCommand(RAMWRP);
-    }
+    initRamWrite(x, y, x + nCols - 1, y + nRows - 1);
 
     for (i = 0; i < nRows; ++i)
     {
@@ -452,15 +427,7 @@ void LCDShield::setRect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, bool fil
 	// check if the rectangle is to be filled
     if (fill)
 	{
-        LCDCommand(PASETP); // page start/end ram
-        LCDData(y0);
-        LCDData(y1);
-        
-        LCDCommand(CASETP); // column start/end ram
-        LCDData(x0);
-        LCDData(x1);
-        
-        LCDCommand(RAMWRP); // write
+        initRamWrite(x0, y0, x1, y1);
         
         const uint8_t lines = y1 - y0;
         const uint8_t width = x1 - x0;
@@ -523,20 +490,11 @@ void LCDShield::drawPixels(uint8_t *pixels, uint16_t pxsize, uint8_t x0, uint8_t
 {
     // Draw raw pixels in 12 bit colour format. It is assumed that pixels are combined
     // (1.5 byte each) to speed things up.
-    // UNDONE: Only supports PHILIPS
 
-    LCDCommand(PASETP); // page start/end ram
-    LCDData(y0);
-    LCDData(y1);
-
-    LCDCommand(CASETP); // column start/end ram
-    LCDData(x0);
-    LCDData(x1);
-
-    LCDCommand(RAMWRP); // write
+    initRamWrite(x0, y0, x1, y1);
 
     for (uint16_t i=0; i<pxsize; ++i)
-        FastLCDData(pixels[i]);
+        fastLCDData(pixels[i]);
 }
 
 void LCDShield::off(void)

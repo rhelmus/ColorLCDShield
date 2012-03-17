@@ -338,11 +338,16 @@ static char logo_spark[1120] =	{
 class LCDShield
 {
 	uint8_t driver;
+    bool colRowSwap;
+
+    void initRamWrite(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1);
 	
 public:
+    enum EOrientation { NORTH, WEST, SOUTH, EAST };
+
     LCDShield(void);
 
-    void init(uint8_t type);
+    void init(uint8_t type, EOrientation orient);
 	void clear(int color);
     void contrast(uint8_t setting);
 
