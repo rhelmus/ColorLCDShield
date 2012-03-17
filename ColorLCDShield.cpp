@@ -39,7 +39,6 @@ void LCDCommand(uint8_t data)
     LCD_PORT_CS	|=	(1<<CS);  // disable
 }
 
-// Inlined to get some extra performance (at the cost of space)
 void LCDData(uint8_t data)
 {
     cbi(SPCR, SPE); // Temporarily disable hardware SPI
@@ -453,25 +452,37 @@ void LCDShield::setRect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, bool fil
 	// check if the rectangle is to be filled
     if (fill)
 	{
-		int xDiff;
-	
-		if(x0 > x1)
-			xDiff = x0 - x1; //Find the difference between the x vars
-		else
-			xDiff = x1 - x0;
-	
-		while(xDiff > 0)
-		{
-			setLine(x0, y0, x0, y1, color);
-		
-			if(x0 > x1)
-				x0--;
-			else
-				x0++;
-		
-			xDiff--;
-		}
-
+        LCDCommand(PASETP); // page start/end ram
+        LCDData(y0);
+        LCDData(y1);
+        
+        LCDCommand(CASETP); // column start/end ram
+        LCDData(x0);
+        LCDData(x1);
+        
+        LCDCommand(RAMWRP); // write
+        
+        const uint8_t lines = y1 - y0;
+        const uint8_t width = x1 - x0;
+        const uint16_t pxsize = lines * width;
+        uint16_t px = 0;
+        while(px < pxsize)
+        {
+            ++px;
+            if (px < pxsize)
+            {
+                ++px;
+                // Write two pixels at once
+                LCDData((color >> 4) & 0xFF);
+                LCDData(((color & 0xF) << 4) | ((color >> 8) & 0xF));
+                LCDData(color & 0xFF);
+            }
+            else
+            {
+                LCDData((color >> 4) & 0xFF);
+                LCDData((color & 0xF) << 4);
+            }
+        }
 	}
 	else 
 	{
@@ -526,8 +537,6 @@ void LCDShield::drawPixels(uint8_t *pixels, uint16_t pxsize, uint8_t x0, uint8_t
 
     for (uint16_t i=0; i<pxsize; ++i)
         FastLCDData(pixels[i]);
-
-    LCDCommand(NOPP);
 }
 
 void LCDShield::off(void)
