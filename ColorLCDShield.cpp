@@ -429,11 +429,11 @@ void LCDShield::setRect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, bool fil
 	{
         initRamWrite(x0, y0, x1, y1);
         
-        const uint8_t lines = y1 - y0;
-        const uint8_t width = x1 - x0;
+        const uint8_t lines = (y1 - y0) + 1;
+        const uint8_t width = (x1 - x0) + 1;
         const uint16_t pxsize = lines * width;
         uint16_t px = 0;
-        while(px < pxsize)
+        while (px < pxsize)
         {
             ++px;
             if (px < pxsize)
