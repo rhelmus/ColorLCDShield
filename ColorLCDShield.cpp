@@ -353,14 +353,89 @@ void LCDShield::setChar(char c, uint8_t x, uint8_t y, int fColor, int bColor)
 void LCDShield::setStr(const char *pString, uint8_t x, uint8_t y, int fColor, int bColor)
 {
 	// loop until null-terminator is seen
-	while (*pString != 0x00) {
+    while (*pString != 0x00)
+    {
 		// draw the character
 		setChar(*pString++, x, y, fColor, bColor);
 		// advance the y position
         x = x + 8;
         // bail out if x exceeds 131
         if (x > 131) break;
-	}
+    }
+}
+
+void LCDShield::setStr_P(const char *pString, uint8_t x, uint8_t y, int fColor, int bColor)
+{
+    // loop until null-terminator is seen
+    uint8_t c;
+    while ((c = pgm_read_byte_near(pString++)) != 0)
+    {
+        // draw the character
+        setChar(c, x, y, fColor, bColor);
+        // advance the y position
+        x = x + 8;
+        // bail out if x exceeds 131
+        if (x > 131) break;
+    }
+}
+
+void LCDShield::setCharSmall(char c, uint8_t x, uint8_t y, int fColor, int bColor)
+{
+    // Adapted from http://www.stahlke.org/dan/nokialcd/
+
+    int idx = c-' ';
+    if((idx < 0) || (idx >= 96))
+        idx = 0;
+
+    const char *p = font5x8 + idx * 5;
+
+    initRamWrite(x, y, x + 5, y + 8);
+
+    for(int j=0; j<8; j++)
+    {
+        char mask = (1<<j);
+        for(int i=0; i<3; i++)
+        {
+            const char b1 = pgm_read_byte(p + i*2) & mask;
+            const char b2 = (i==2) ? 0 : pgm_read_byte(p + i*2+1) & mask;
+            const int p1 = (b1) ? fColor : bColor;
+            const int p2 = (b2) ? fColor : bColor;
+
+            LCDData((p1 >> 4) & 0xFF);
+            LCDData(((p1 & 0xF) << 4) | ((p2 >> 8) & 0xF));
+            LCDData(p2 & 0xFF);
+        }
+    }
+}
+
+void LCDShield::setStrSmall(const char *pString, uint8_t x, uint8_t y, int fColor,
+                            int bColor)
+{
+    // loop until null-terminator is seen
+    while (*pString != 0x00)
+    {
+        // draw the character
+        setCharSmall(*pString++, x, y, fColor, bColor);
+        // advance the y position
+        x = x + 6;
+        // bail out if x exceeds 131
+        if (x > 131) break;
+    }
+}
+
+void LCDShield::setStrSmall_P(const char *pString, uint8_t x, uint8_t y, int fColor, int bColor)
+{
+    // loop until null-terminator is seen
+    uint8_t c;
+    while ((c = pgm_read_byte_near(pString++)) != 0)
+    {
+        // draw the character
+        setCharSmall(c, x, y, fColor, bColor);
+        // advance the y position
+        x = x + 6;
+        // bail out if x exceeds 131
+        if (x > 131) break;
+    }
 }
 
 void LCDShield::setLine(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, int color)
