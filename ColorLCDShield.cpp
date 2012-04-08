@@ -387,7 +387,7 @@ void LCDShield::setCharSmall(char c, uint8_t x, uint8_t y, int fColor, int bColo
     if((idx < 0) || (idx >= 96))
         idx = 0;
 
-    const char *p = font5x8 + idx * 5;
+    const uint8_t *p = font5x8 + idx * 5;
 
     initRamWrite(x, y, x + 5, y + 8);
 

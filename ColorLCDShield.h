@@ -275,7 +275,7 @@ const uint8_t FONT8x16[97][16] PROGMEM = {
 };
 
 // Copied from http://www.stahlke.org/dan/nokialcd/
-static const char font5x8[] PROGMEM = {
+const uint8_t font5x8[] PROGMEM = {
     0x00, 0x00, 0x00, 0x00, 0x00, // (spacja)
     0x00, 0x00, 0x5F, 0x00, 0x00, // !
     0x00, 0x07, 0x00, 0x07, 0x00, // "
